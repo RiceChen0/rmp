@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
 
 /**
@@ -51,7 +52,7 @@ void rmp_mutex_delete(rmp_mutex_id mutex);
 typedef void *rmp_sem_id;
 
 rmp_sem_id rmp_sem_create(uint32_t value);
-rmp_status rmp_sem_lock(rmp_sem_id sem, rmp_time_t time);
+rmp_status rmp_sem_lock(rmp_sem_id sem, bool block);
 rmp_status rmp_sem_unlock(rmp_sem_id sem);
 void rmp_sem_delete(rmp_sem_id sem);
 

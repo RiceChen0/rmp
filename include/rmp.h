@@ -28,6 +28,8 @@ typedef struct rmp_element {
 
 rmp_t *rmp_create(uint32_t size, uint32_t count);
 
+void rmp_delete(rmp_t *mp);
+
 void *rmp_alloc(rmp_t *mp);
 
 void *rmp_try_alloc(rmp_t *mp);

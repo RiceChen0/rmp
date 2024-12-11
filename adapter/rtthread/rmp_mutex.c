@@ -11,18 +11,12 @@ rmp_mutex_id rmp_mutex_create(void)
 
 rmp_status rmp_mutex_lock(rmp_mutex_id mutex)
 {
-    if (mutex == NULL) {
-        return RMP_INVAL;
-    }
     rt_mutex_take((rt_mutex_t)mutex, RT_WAITING_FOREVER);
     return RMP_ERROR;
 }
 
 rmp_status rmp_mutex_unlock(rmp_mutex_id mutex)
 {
-    if (mutex == NULL) {
-        return RMP_INVAL;
-    }
     rt_mutex_release((rt_mutex_t)mutex);
     return RMP_ERROR;
 }

@@ -36,10 +36,11 @@ rmp_t *rmp_create(uint32_t size, uint32_t count)
         goto __EXIT;
     }
 
+    mp->size = size * count;
     mp->free_list = NULL;
 
     for(element = mp->mem; 
-        element < ((uint8_t*)mp->mem + (size * count)); 
+        element < ((uint8_t*)mp->mem + mp->size); 
         element += size) {
         rmp_free(mp, element);
     }
@@ -53,23 +54,64 @@ __EXIT:
     return NULL;
 }
 
+void rmp_delete(rmp_t *mp)
+{
+    rmp_mutex_delete(&mp->mutex);
+    rmp_sem_delete(&mp->alloc_sem);
+    rmp_sem_delete(&mp->free_sem);
+
+    RMP_FREE(mp->mem);
+    mp->mem = NULL;
+
+    RMP_FREE(mp);
+    mp = NULL;
+}
+
+static void *__rmp_alloc(rmp_t *mp, bool block)
+{
+    RMP_ASSERT(mp);
+
+    rmp_status ret;
+    void *new = NULL;
+
+    if(block) {
+        rmp_sem_lock(&mp->alloc_sem, true);
+    } else {
+        ret = rmp_sem_lock(&mp->alloc_sem, false);
+        if(ret != RMP_OK) {
+            return NULL;
+        }
+    }
+
+    rmp_mutex_lock(&mp->mutex);
+    new = mp->free_list;
+    if(new) {
+        mp->free_list = *((void **)mp->free_list);
+    }
+    rmp_mutex_unlock(&mp->mutex);
+
+    rmp_sem_unlock(&mp->free_sem);
+
+    return new;
+}
+
 void *rmp_alloc(rmp_t *mp)
 {
     RMP_ASSERT(mp);
 
-    void *free = mp->free_list;
-    if(free) {
-        mp->free_list = *((void **)mp->free_list);
-    }
-
-    return free;
+    return __rmp_alloc(mp, true);
 }
 
 void *rmp_try_alloc(rmp_t *mp)
 {
     RMP_ASSERT(mp);
     
-    return rmp_alloc(mp);
+    return __rmp_alloc(mp, false);
+}
+
+static bool __rmp_in_pool(rmp_t *mp, void *ptr)
+{
+    return (ptr >= mp->mem) && (uint8_t *)ptr < ((uint8_t*)mp->mem + mp->size);
 }
 
 void rmp_free(rmp_t *mp, void *ptr)
@@ -77,8 +119,23 @@ void rmp_free(rmp_t *mp, void *ptr)
     RMP_ASSERT(mp);
     RMP_ASSERT(ptr);
 
+    rmp_status ret;
+
+    if(!__rmp_in_pool(mp, ptr)) {
+        return;
+    }
+
+    ret = rmp_sem_lock(&mp->free_sem, false);
+    if(ret != RMP_OK) {
+        return;
+    }
+
+    rmp_mutex_lock(&mp->mutex);
     memcpy(ptr, &mp->free_list, sizeof(void *));
     mp->free_list = ptr;
+    rmp_mutex_unlock(&mp->mutex);
+
+    rmp_sem_unlock(&mp->alloc_sem);
 }
 
 uint32_t rmp_available(rmp_t *mp)
