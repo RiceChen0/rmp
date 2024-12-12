@@ -26,9 +26,13 @@ typedef struct rmp_element {
     struct rmp_element *next;      /**< Pointer to the next element */
 } rmp_element_t;
 
+#ifdef RMP_USING_DYNAMIC
 rmp_t *rmp_create(uint32_t size, uint32_t count);
 
 void rmp_delete(rmp_t *mp);
+#endif
+
+void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count);
 
 void *rmp_alloc(rmp_t *mp);
 

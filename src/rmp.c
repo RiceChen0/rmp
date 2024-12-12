@@ -6,11 +6,50 @@
 
 #include "rmp.h"
 
+static void *_rmp_alloc(rmp_t *mp);
+static void _rmp_free(rmp_t *mp, void *ptr);
+
+static void _rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
+{
+    RMP_ASSERT(mp && mem);
+
+    uint8_t *element = NULL;
+
+    mp->size = size * count;
+    mp->free_list = NULL;
+
+    for(element = mem; 
+        element < ((uint8_t*)mem + mp->size); 
+        element += size) {
+        _rmp_free(mp, element);
+    }
+}
+
+static void *_rmp_alloc(rmp_t *mp)
+{
+    RMP_ASSERT(mp);
+
+    void *new = NULL;
+
+    new = mp->free_list;
+    if(new) {
+        mp->free_list = *((void **)mp->free_list);
+    }
+
+    return new;
+}
+
+static void _rmp_free(rmp_t *mp, void *ptr)
+{
+    memcpy(ptr, &mp->free_list, sizeof(void *));
+    mp->free_list = ptr;
+}
+
+#ifdef RMP_USING_DYNAMIC
 rmp_t *rmp_create(uint32_t size, uint32_t count)
 {
     rmp_t *mp = NULL;
-    uint8_t *element = NULL;
-
+    
     mp = (rmp_t *)RMP_MALLOC(sizeof(rmp_t));
     if(mp == NULL) {
         return NULL;
@@ -22,12 +61,12 @@ rmp_t *rmp_create(uint32_t size, uint32_t count)
     }
 
     mp->alloc_sem = rmp_sem_create(count);
-    if(mp->mutex == NULL) {
+    if(mp->alloc_sem == NULL) {
         goto __EXIT;
     }
 
     mp->free_sem = rmp_sem_create(0);
-    if(mp->mutex == NULL) {
+    if(mp->free_sem == NULL) {
         goto __EXIT;
     }
 
@@ -36,14 +75,7 @@ rmp_t *rmp_create(uint32_t size, uint32_t count)
         goto __EXIT;
     }
 
-    mp->size = size * count;
-    mp->free_list = NULL;
-
-    for(element = mp->mem; 
-        element < ((uint8_t*)mp->mem + mp->size); 
-        element += size) {
-        rmp_free(mp, element);
-    }
+    _rmp_init(mp, mp->mem, size, count);
 
     return mp;
 
@@ -56,9 +88,11 @@ __EXIT:
 
 void rmp_delete(rmp_t *mp)
 {
-    rmp_mutex_delete(&mp->mutex);
-    rmp_sem_delete(&mp->alloc_sem);
-    rmp_sem_delete(&mp->free_sem);
+    RMP_ASSERT(mp);
+
+    rmp_mutex_delete(mp->mutex);
+    rmp_sem_delete(mp->alloc_sem);
+    rmp_sem_delete(mp->free_sem);
 
     RMP_FREE(mp->mem);
     mp->mem = NULL;
@@ -66,47 +100,54 @@ void rmp_delete(rmp_t *mp)
     RMP_FREE(mp);
     mp = NULL;
 }
+#endif
 
-static void *__rmp_alloc(rmp_t *mp, bool block)
+void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
 {
-    RMP_ASSERT(mp);
+    mp->mutex = rmp_mutex_create();
+    mp->alloc_sem = rmp_sem_create(count);
+    mp->free_sem = rmp_sem_create(0);
 
-    rmp_status ret;
-    void *new = NULL;
-
-    if(block) {
-        rmp_sem_lock(&mp->alloc_sem, true);
-    } else {
-        ret = rmp_sem_lock(&mp->alloc_sem, false);
-        if(ret != RMP_OK) {
-            return NULL;
-        }
-    }
-
-    rmp_mutex_lock(&mp->mutex);
-    new = mp->free_list;
-    if(new) {
-        mp->free_list = *((void **)mp->free_list);
-    }
-    rmp_mutex_unlock(&mp->mutex);
-
-    rmp_sem_unlock(&mp->free_sem);
-
-    return new;
+    mp->mem = mem;
+    _rmp_init(mp, mp->mem, size, count);
 }
 
 void *rmp_alloc(rmp_t *mp)
 {
     RMP_ASSERT(mp);
 
-    return __rmp_alloc(mp, true);
+    void *new = NULL;
+
+    rmp_sem_lock(mp->alloc_sem, true);
+
+    rmp_mutex_lock(mp->mutex);
+    new = _rmp_alloc(mp);
+    rmp_mutex_unlock(mp->mutex);
+
+    rmp_sem_unlock(mp->free_sem);
+
+    return new;
 }
 
 void *rmp_try_alloc(rmp_t *mp)
 {
     RMP_ASSERT(mp);
-    
-    return __rmp_alloc(mp, false);
+
+    rmp_status ret;
+    void *new = NULL;
+
+    ret = rmp_sem_lock(mp->alloc_sem, false);
+    if(ret != RMP_OK) {
+        return NULL;
+    }
+
+    rmp_mutex_lock(mp->mutex);
+    new = _rmp_alloc(mp);
+    rmp_mutex_unlock(mp->mutex);
+
+    rmp_sem_unlock(mp->free_sem);
+
+    return new;
 }
 
 static bool __rmp_in_pool(rmp_t *mp, void *ptr)
@@ -125,17 +166,16 @@ void rmp_free(rmp_t *mp, void *ptr)
         return;
     }
 
-    ret = rmp_sem_lock(&mp->free_sem, false);
+    ret = rmp_sem_lock(mp->free_sem, false);
     if(ret != RMP_OK) {
         return;
     }
 
-    rmp_mutex_lock(&mp->mutex);
-    memcpy(ptr, &mp->free_list, sizeof(void *));
-    mp->free_list = ptr;
-    rmp_mutex_unlock(&mp->mutex);
+    rmp_mutex_lock(mp->mutex);
+    _rmp_free(mp, ptr);
+    rmp_mutex_unlock(mp->mutex);
 
-    rmp_sem_unlock(&mp->alloc_sem);
+    rmp_sem_unlock(mp->alloc_sem);
 }
 
 uint32_t rmp_available(rmp_t *mp)
