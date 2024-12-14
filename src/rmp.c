@@ -15,11 +15,11 @@ static void _rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
 
     uint8_t *element = NULL;
 
-    mp->size = size * count;
+    mp->mee_size = size * count;
     mp->free_list = NULL;
 
     for(element = mem; 
-        element < ((uint8_t*)mem + mp->size); 
+        element < ((uint8_t*)mem + mp->mee_size); 
         element += size) {
         _rmp_free(mp, element);
     }
@@ -100,8 +100,7 @@ void rmp_delete(rmp_t *mp)
     RMP_FREE(mp);
     mp = NULL;
 }
-#endif
-
+#else
 void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
 {
     mp->mutex = rmp_mutex_create();
@@ -111,6 +110,16 @@ void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
     mp->mem = mem;
     _rmp_init(mp, mp->mem, size, count);
 }
+
+void rmp_deinit(rmp_t *mp)
+{
+    RMP_ASSERT(mp);
+
+    rmp_mutex_delete(mp->mutex);
+    rmp_sem_delete(mp->alloc_sem);
+    rmp_sem_delete(mp->free_sem);
+}
+#endif
 
 void *rmp_alloc(rmp_t *mp)
 {
