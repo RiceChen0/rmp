@@ -15,11 +15,11 @@ static void _rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
 
     uint8_t *element = NULL;
 
-    mp->mee_size = size * count;
+    mp->mem_size = size * count;
     mp->free_list = NULL;
 
     for(element = mem; 
-        element < ((uint8_t*)mem + mp->mee_size); 
+        element < ((uint8_t*)mem + mp->mem_size); 
         element += size) {
         _rmp_free(mp, element);
     }
@@ -45,7 +45,7 @@ static void _rmp_free(rmp_t *mp, void *ptr)
     mp->free_list = ptr;
 }
 
-#ifdef RMP_USING_DYNAMIC
+#if RMP_USING_DYNAMIC
 rmp_t *rmp_create(uint32_t size, uint32_t count)
 {
     rmp_t *mp = NULL;
@@ -55,6 +55,7 @@ rmp_t *rmp_create(uint32_t size, uint32_t count)
         return NULL;
     }
 
+#if RMP_USING_RTOS
     mp->mutex = rmp_mutex_create();
     if(mp->mutex == NULL) {
         goto __EXIT;
@@ -69,6 +70,7 @@ rmp_t *rmp_create(uint32_t size, uint32_t count)
     if(mp->free_sem == NULL) {
         goto __EXIT;
     }
+#endif
 
     mp->mem = RMP_MALLOC(size * count);
     if(mp->mem == NULL) {
@@ -90,9 +92,11 @@ void rmp_delete(rmp_t *mp)
 {
     RMP_ASSERT(mp);
 
+#if RMP_USING_RTOS
     rmp_mutex_delete(mp->mutex);
     rmp_sem_delete(mp->alloc_sem);
     rmp_sem_delete(mp->free_sem);
+#endif
 
     RMP_FREE(mp->mem);
     mp->mem = NULL;
@@ -103,9 +107,11 @@ void rmp_delete(rmp_t *mp)
 #else
 void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count)
 {
+#if RMP_USING_RTOS
     mp->mutex = rmp_mutex_create();
     mp->alloc_sem = rmp_sem_create(count);
     mp->free_sem = rmp_sem_create(0);
+#endif
 
     mp->mem = mem;
     _rmp_init(mp, mp->mem, size, count);
@@ -115,9 +121,11 @@ void rmp_deinit(rmp_t *mp)
 {
     RMP_ASSERT(mp);
 
+#if RMP_USING_RTOS
     rmp_mutex_delete(mp->mutex);
     rmp_sem_delete(mp->alloc_sem);
     rmp_sem_delete(mp->free_sem);
+#endif
 }
 #endif
 
@@ -126,15 +134,19 @@ void *rmp_alloc(rmp_t *mp)
     RMP_ASSERT(mp);
 
     void *new = NULL;
-
+#if RMP_USING_RTOS
     rmp_sem_lock(mp->alloc_sem, true);
 
     rmp_mutex_lock(mp->mutex);
+#endif
+
     new = _rmp_alloc(mp);
+
+#if RMP_USING_RTOS
     rmp_mutex_unlock(mp->mutex);
 
     rmp_sem_unlock(mp->free_sem);
-
+#endif
     return new;
 }
 
@@ -142,8 +154,10 @@ void *rmp_try_alloc(rmp_t *mp)
 {
     RMP_ASSERT(mp);
 
-    rmp_status ret;
     void *new = NULL;
+
+#if RMP_USING_RTOS
+    rmp_status ret;
 
     ret = rmp_sem_lock(mp->alloc_sem, false);
     if(ret != RMP_OK) {
@@ -151,17 +165,20 @@ void *rmp_try_alloc(rmp_t *mp)
     }
 
     rmp_mutex_lock(mp->mutex);
+#endif
     new = _rmp_alloc(mp);
+
+#if RMP_USING_RTOS
     rmp_mutex_unlock(mp->mutex);
 
     rmp_sem_unlock(mp->free_sem);
-
+#endif
     return new;
 }
 
 static bool __rmp_in_pool(rmp_t *mp, void *ptr)
 {
-    return (ptr >= mp->mem) && (uint8_t *)ptr < ((uint8_t*)mp->mem + mp->size);
+    return (ptr >= mp->mem) && (uint8_t *)ptr < ((uint8_t*)mp->mem + mp->mem_size);
 }
 
 void rmp_free(rmp_t *mp, void *ptr)
@@ -169,11 +186,12 @@ void rmp_free(rmp_t *mp, void *ptr)
     RMP_ASSERT(mp);
     RMP_ASSERT(ptr);
 
-    rmp_status ret;
-
     if(!__rmp_in_pool(mp, ptr)) {
         return;
     }
+
+#if RMP_USING_RTOS
+    rmp_status ret;
 
     ret = rmp_sem_lock(mp->free_sem, false);
     if(ret != RMP_OK) {
@@ -181,10 +199,15 @@ void rmp_free(rmp_t *mp, void *ptr)
     }
 
     rmp_mutex_lock(mp->mutex);
+#endif
+
     _rmp_free(mp, ptr);
+
+#if RMP_USING_RTOS
     rmp_mutex_unlock(mp->mutex);
 
     rmp_sem_unlock(mp->alloc_sem);
+#endif
 }
 
 uint32_t rmp_available(rmp_t *mp)
@@ -194,9 +217,15 @@ uint32_t rmp_available(rmp_t *mp)
     uint32_t count = 0;
     void **element = &mp->free_list;
 
+#if RMP_USING_RTOS
+    rmp_mutex_lock(mp->mutex);
+#endif
     while (*element) {
         element = (void**)*element;
         count++;
     }
+#if RMP_USING_RTOS
+    rmp_mutex_unlock(mp->mutex);
+#endif
     return count;
 }

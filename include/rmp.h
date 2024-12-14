@@ -9,20 +9,21 @@
 
 #include <stdint.h>
 #include "rmp_def.h"
+#include "rmp_cfg.h"
 
 /**
  * @brief Memory pool
  */
 typedef struct {
     void *mem;                          /* memory pool */
-    uint32_t mee_size;                  /* size of memory pool */
+    uint32_t mem_size;                  /* size of memory pool */
     void  *free_list;                   /* memory pool head of the free list */
     rmp_sem_id alloc_sem;               /* can alloc semaphore */
     rmp_sem_id free_sem;                /* can free semaphore */
     rmp_mutex_id mutex;                 /* mutex of shared resource */
 } rmp_t;
 
-#ifdef RMP_USING_DYNAMIC
+#if RMP_USING_DYNAMIC
 /**
  * @brief create memory pool
  * 
