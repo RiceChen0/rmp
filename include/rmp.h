@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include "rmp_def.h"
-#include "rmp_cfg.h"
 
 /**
  * @brief Memory pool
@@ -23,7 +22,7 @@ typedef struct {
     rmp_mutex_id mutex;                 /* mutex of shared resource */
 } rmp_t;
 
-#if RMP_USING_DYNAMIC
+#ifdef RMP_USING_DYNAMIC
 /**
  * @brief create memory pool
  * 
@@ -41,7 +40,7 @@ rmp_t *rmp_create(uint32_t size, uint32_t count);
  * @param [in] mp memory pool object
  */
 void rmp_delete(rmp_t *mp);
-#else
+#endif
 /**
  * @brief init memory pool
  * 
@@ -58,7 +57,6 @@ void rmp_init(rmp_t *mp, void *mem, uint32_t size, uint32_t count);
  * @param [in] mp memory pool object
  */
 void rmp_deinit(rmp_t *mp);
-#endif
 
 /**
  * @brief alloc memory block

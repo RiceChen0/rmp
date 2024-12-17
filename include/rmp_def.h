@@ -13,6 +13,12 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#ifdef __RTTHREAD__
+#include <rtthread.h>
+#endif
+
+#ifdef RMP_USING_DYNAMIC
+
 /**
  * memory API
 */
@@ -22,6 +28,8 @@
 
 #ifndef RMP_FREE
     #define RMP_FREE            free
+#endif
+
 #endif
 
 #ifndef RMP_ASSERT
@@ -34,7 +42,7 @@ typedef enum {
     RMP_INVAL,                  /**< Invalid argument */
 } rmp_status;
 
-typedef uint32_t rmp_time_t;
+#ifdef RMP_USING_RTOS
 
 /**
  * Mutex API
@@ -55,5 +63,7 @@ rmp_sem_id rmp_sem_create(uint32_t value);
 rmp_status rmp_sem_lock(rmp_sem_id sem, bool block);
 rmp_status rmp_sem_unlock(rmp_sem_id sem);
 void rmp_sem_delete(rmp_sem_id sem);
+
+#endif
 
 #endif
