@@ -29,7 +29,7 @@ RMP(Rice Memory Pool)全称内存池，它是超级高效，并且线程安全�
 
 ##### RMP初始化框图
 
-![](pic/1.png)
+![image](pic/1.png)
 
 ##### RMP初始化软件设计说明
 
@@ -40,7 +40,7 @@ RMP(Rice Memory Pool)全称内存池，它是超级高效，并且线程安全�
 
 ##### RMP内存申请框图
 
-![](pic/2.png)
+![image](pic/2.png)
 
 ##### RMP内存申请软件设计说明
 
@@ -52,7 +52,7 @@ RMP(Rice Memory Pool)全称内存池，它是超级高效，并且线程安全�
 
 ##### RMP内存释放框图
 
-![](pic/3.png)
+![image](pic/3.png)
 
 ##### RMP内存释放软件设计说明
 1. 当block2释放的时候，block2的前四个字节保存free_list指向的地址。
@@ -322,11 +322,11 @@ INIT_COMPONENT_EXPORT(rmp_init);
 
 3. 实验运行结果：成功申请4次，失败1次，然后释放了1次，又可以申请1次。
 
-![](pic/5.png)
+![image](pic/5.png)
 
 ## 总结：
 1. rmp是一个非常高效且安全的内存池组件。
 2. rmp可以减少对malloc和free的使用，避免内存碎片的产生。
 3. 在设计rmp的同时，也发现RT-Thread内核自带的内存池是很浪费空间并且时间上不是最佳的，我也给RT-Thread社区提了一个对应的issue。
 
-![](pic/4.png)
+![image](pic/4.png)
